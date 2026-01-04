@@ -1,0 +1,50 @@
+#PostgreSQL을 어떤 설정으로 실행할지 적어둔 것 -> 동일하게 맞춤
+
+services:
+  # services = docker로 실행할 프로그램 목록
+  # 여기서는 DB(PostgreSQL) 하나만 실행
+
+  db:
+    # 서비스 이름 (임의 이름)
+    # 나중에 FastAPI에서 "db"라는 이름으로 접근 가능
+
+    image: postgres:16
+    # postgres 공식 이미지 사용
+    # :16 은 PostgreSQL 버전 (팀원 전부 동일 버전 보장)
+
+    container_name: skincare-postgres
+    # 실행될 컨테이너 이름
+    # docker ps 했을 때 보이는 이름
+
+    restart: unless-stopped
+    # Docker가 꺼졌다 켜져도 자동 재시작
+    # (우리가 직접 stop 하지 않는 한 계속 유지)
+
+    environment:
+      # PostgreSQL 실행 시 필요한 환경변수들
+      # 실제 값은 .env 파일에서 가져옴
+
+      POSTGRES_USER: ${POSTGRES_USER}
+      # DB 접속 계정명
+
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # DB 접속 비밀번호
+
+      POSTGRES_DB: ${POSTGRES_DB}
+      # 처음 생성할 DB 이름
+
+    ports:
+      - "5432:5432"
+      # [내 PC 포트] : [컨테이너 안 포트]
+      # 즉, localhost:5432 로 접속하면
+      # docker 안의 Postgres(5432)로 연결됨
+
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # DB 데이터 저장 위치
+      # 컨테이너를 껐다 켜도 데이터가 유지되도록 함
+
+volumes:
+  db_data:
+  # 위에서 사용한 db_data 라는 볼륨 정의
+  # 실제 DB 파일들이 여기에 저장됨
