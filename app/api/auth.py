@@ -48,7 +48,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     print("DEBUG register password bytes =", len(payload.password.encode("utf-8")))
     print("DEBUG register password repr  =", repr(payload.password[:120]))
 
-    # 1) 중복 체크 (email OR login_id)
+    #  중복 체크 (email OR login_id)
     stmt = select(User).where(
         or_(
             User.email == email,

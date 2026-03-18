@@ -44,6 +44,13 @@ router = APIRouter(prefix="/survey", tags=["Survey"])
 # (추가) 설문 전 사전 선택 옵션
 PRESET_SKIN_TYPES = ["건성", "지성", "복합성", "모르겠습니다"]
 
+# 🚀 AI 분석기 연동을 위한 한글 -> 영문 매핑 사전 (네 변수명 COMB 유지!)
+SKIN_TYPE_MAP = {
+    "건성": "DRY",
+    "지성": "OILY",
+    "복합성": "COMB"
+}
+
 
 @router.get("/preset-options", response_model=list[str])
 def get_preset_options():
@@ -116,8 +123,11 @@ def submit_survey(
         # 설문 완료 처리 (기존 처리 그대로)
         db_user = db.get(User, user_id)
         db_user.survey_completed_at = datetime.utcnow()
+        
+        # 🚀 유저 테이블에 영문으로 변환해서 피부 타입 저장 (기본값도 COMB!)
+        db_user.skin_type = SKIN_TYPE_MAP.get(payload.preset_skin_type, "COMB")
+        
         db.add(db_user)
-
         db.commit()
 
         return SurveyResultOut(
@@ -190,8 +200,11 @@ def submit_survey(
     # 설문 완료 처리
     db_user = db.get(User, user_id)
     db_user.survey_completed_at = datetime.utcnow()
+    
+    # 🚀 유저 테이블에 영문으로 변환해서 피부 타입 저장 (기본값도 COMB!)
+    db_user.skin_type = SKIN_TYPE_MAP.get(skin_type, "COMB")
+    
     db.add(db_user)
-
     db.commit()
 
     return SurveyResultOut(
