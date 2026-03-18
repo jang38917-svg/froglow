@@ -1,0 +1,35 @@
+services:
+  # PostgreSQL DB
+  db:
+    image: postgres:16
+    container_name: skincare-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  # FastAPI 백엔드
+  api:
+    build: .
+    container_name: skincare-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # DATABASE_URL 설정
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    volumes:
+      - ./:/app                          # 코드 수정 시 즉시 반영용
+      - ./data/uploads:/app/data/uploads # 🚀 [추가] 사진 영구 저장용 볼륨
+    working_dir: /app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  db_data:
