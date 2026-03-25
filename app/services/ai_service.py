@@ -1,31 +1,51 @@
 import json
-import io
-from PIL import Image
-from ultralytics import YOLO
-from typing import List, Dict
+import requests
+from fastapi import APIRouter, UploadFile, File
 
-class SkinAI:
-    def __init__(self, model_path: str = "ml_models/best.pt"):
-        # 서버 시작 시 모델을 메모리에 로드
-        self.model = YOLO(model_path)
-        
-        # 클래스 맵 로드
-        with open("data/class_map.json", "r", encoding="utf-8") as f:
-            self.class_map = json.load(f)
+router = APIRouter()
 
-    def predict(self, image_bytes: bytes) -> Dict[str, int]:
-        img = Image.open(io.BytesIO(image_bytes))
-        # AI 팀원 설정값: imgsz=1024, conf=0.25
-        results = self.model.predict(source=img, imgsz=1024, conf=0.25, verbose=False)
-        
-        counts = {"acne": 0, "redness": 0, "wrinkle": 0, "spot": 0}
-        for r in results:
-            for b in r.boxes:
-                cls_id = str(int(b.cls[0].item()))
-                class_name = self.class_map.get(cls_id)
-                if class_name in counts:
-                    counts[class_name] += 1
-        return counts
+YOLO_URL = "http://host.docker.internal:8001/analyze"
+SCORE_URL = "http://host.docker.internal:8002/analyze"
 
-# 싱글톤 객체 생성
-skin_ai = SkinAI()
+
+@router.post("/analyze")
+async def analyze(file: UploadFile = File(...)):
+    image_bytes = await file.read()
+
+    # -------------------------
+    # 1. YOLO 서버 호출
+    # -------------------------
+    files = {
+        "file": (file.filename, image_bytes, file.content_type)
+    }
+
+    yolo_res = requests.post(YOLO_URL, files=files)
+
+    if yolo_res.status_code != 200:
+        return {"error": "YOLO server failed", "detail": yolo_res.text}
+
+    yolo_data = yolo_res.json()
+    detections = yolo_data.get("detections", [])
+
+    # -------------------------
+    # 2. score 서버 호출
+    # -------------------------
+    data = {
+        "detections": json.dumps(detections)
+    }
+
+    score_res = requests.post(
+        SCORE_URL,
+        files=files,
+        data=data
+    )
+
+    if score_res.status_code != 200:
+        return {"error": "Score server failed", "detail": score_res.text}
+
+    score_data = score_res.json()
+
+    return {
+        "detections": detections,
+        "score": score_data
+    }

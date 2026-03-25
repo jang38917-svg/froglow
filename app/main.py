@@ -4,6 +4,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.auth import router as auth_router
 from app.api.survey import router as survey_router
@@ -29,6 +30,8 @@ from app.models.reminder import Reminder
 from app.api.endpoints import chatbot
 
 app = FastAPI(title="SkinCare API")
+
+app.mount("/uploads", StaticFiles(directory="data/uploads"), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,

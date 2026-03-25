@@ -4,12 +4,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 
-# 🌟 개발자님이 짜두신 전설의 서비스 로직 임포트!
 from app.services.recommend_service import recommend_products
 
 router = APIRouter()
 
-# DB 세션 의존성 (기존에 쓰시던 get_db가 있다면 그걸 임포트해 쓰셔도 됩니다)
 def get_db():
     db = SessionLocal()
     try:
