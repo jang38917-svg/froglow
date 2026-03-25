@@ -46,7 +46,6 @@ def _save_base64_image(base64_str: str, output_path: str) -> None:
     if not base64_str:
         return
 
-    # data:image/jpeg;base64,... 형태 대응
     if "," in base64_str:
         base64_str = base64_str.split(",", 1)[1]
 
@@ -94,9 +93,6 @@ async def analyze_skin(
     front_detections = []
 
     try:
-        # -------------------------
-        # 1) front / left / right 각각 YOLO 호출
-        # -------------------------
         for direction in directions:
             yolo_result = await call_yolo_api(
                 image_path=saved_file_paths[direction],
@@ -117,9 +113,6 @@ async def analyze_skin(
             else:
                 annotated_file_paths[direction] = None
 
-        # -------------------------
-        # 2) 점수 계산은 기존처럼 front 기준
-        # -------------------------
         score_result = await call_skin_score_api(
             image_path=saved_file_paths["front"],
             detections=front_detections,
@@ -152,11 +145,7 @@ async def analyze_skin(
         wrinkles_score=float(final_summary["wrinkle"])
     )
 
-    priority, primary_concern = ["acne", "redness", "wrinkle", "spot"], "clean"
-    for concern in priority:
-        if final_summary[concern] > 0:
-            primary_concern = concern
-            break
+    primary_concern = max(final_summary, key=final_summary.get)
 
     user_id = current_user.id
 

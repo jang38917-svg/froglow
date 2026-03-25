@@ -40,10 +40,7 @@ JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-this-secret-key")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
 
-
-# 
 #  JWT 토큰 생성
-# 
 
 def create_access_token(subject: str) -> str:
     """
@@ -63,7 +60,7 @@ def create_access_token(subject: str) -> str:
     token = jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
     return token
 
-# 4️⃣ JWT 토큰 검증
+#  JWT 토큰 검증
 def decode_access_token(token: str) -> dict:
     """
     JWT 토큰 검증 및 디코딩

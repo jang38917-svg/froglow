@@ -1,4 +1,3 @@
-# app/main.py
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -12,21 +11,22 @@ from app.api.products import router as products_router
 from app.api.endpoints.recommend import router as recommend_router
 from app.api.routines import router as routines_router
 from app.api.reminders import router as reminders_router
-from app.api.endpoints.diagnosis import router as diagnosis_router 
+from app.api.endpoints.diagnosis import router as diagnosis_router
+from app.api.endpoints.diagnosis_calendar import router as diagnosis_calendar_router
 
 from app.db.session import SessionLocal, engine
 from app.db.base import Base
 from app.db.seed_survey import seed_survey_questions
 
-from app.models.user import User 
-from app.models.product import Product 
+from app.models.user import User
+from app.models.product import Product
 from app.models.survey import (
     SurveyQuestion,
     SurveyOption,
     SurveyResponse,
     SurveyAnswer,
-) 
-from app.models.reminder import Reminder 
+)
+from app.models.reminder import Reminder
 from app.api.endpoints import chatbot
 
 app = FastAPI(title="SkinCare API")
@@ -49,11 +49,12 @@ app.include_router(routines_router)
 app.include_router(reminders_router)
 app.include_router(chatbot.router, prefix="/api/v1/chatbot", tags=["chatbot"])
 app.include_router(diagnosis_router, prefix="/api/v1/diagnosis", tags=["Diagnosis"])
+app.include_router(diagnosis_calendar_router, prefix="/api/v1/diagnosis", tags=["Diagnosis Calendar"])
 
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
-    
+
     db = SessionLocal()
     try:
         seed_survey_questions(db)
