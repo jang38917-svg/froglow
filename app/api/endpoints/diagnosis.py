@@ -54,6 +54,28 @@ def _save_base64_image(base64_str: str, output_path: str) -> None:
         f.write(image_bytes)
 
 
+def _extract_product_ids(routine_steps: list[dict]) -> list[int]:
+    product_ids: list[int] = []
+
+    for step in routine_steps or []:
+        items = step.get("items", [])
+        for item in items:
+            product_id = item.get("product_id")
+            if product_id is not None:
+                product_ids.append(product_id)
+
+    # 중복 제거하면서 순서 유지
+    unique_product_ids: list[int] = []
+    seen = set()
+
+    for product_id in product_ids:
+        if product_id not in seen:
+            seen.add(product_id)
+            unique_product_ids.append(product_id)
+
+    return unique_product_ids
+
+
 @router.post("/analyze")
 async def analyze_skin(
     front: UploadFile = File(...),
@@ -149,20 +171,27 @@ async def analyze_skin(
 
     user_id = current_user.id
 
-    if recommendation_result.get("morning_routine"):
+    morning_product_ids = _extract_product_ids(
+        recommendation_result.get("morning_routine", [])
+    )
+    evening_product_ids = _extract_product_ids(
+        recommendation_result.get("evening_routine", [])
+    )
+
+    if morning_product_ids:
         save_routine(
             db,
             user_id=user_id,
             routine_type="AM",
-            product_ids=recommendation_result["morning_routine"]
+            product_ids=morning_product_ids
         )
 
-    if recommendation_result.get("evening_routine"):
+    if evening_product_ids:
         save_routine(
             db,
             user_id=user_id,
             routine_type="PM",
-            product_ids=recommendation_result["evening_routine"]
+            product_ids=evening_product_ids
         )
 
     new_history = DiagnosisHistory(
