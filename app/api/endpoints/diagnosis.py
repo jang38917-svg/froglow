@@ -13,6 +13,7 @@ from app.services.recommend_service import recommend_products
 from app.services.routine_service import save_routine
 from app.services.yolo_client import call_yolo_api, YoloClientError
 from app.services.skin_score_client import call_skin_score_api, SkinScoreClientError
+from app.services.image_preprocess import preprocess_image_map
 from app.models.diagnosis_history import DiagnosisHistory
 from app.api.auth import get_current_user
 from app.models.user import User
@@ -65,7 +66,6 @@ def _extract_product_ids(routine_steps: list[dict]) -> list[int]:
             if product_id is not None:
                 product_ids.append(product_id)
 
-    # 중복 제거하면서 순서 유지
     unique_product_ids: list[int] = []
     seen = set()
 
@@ -105,6 +105,24 @@ async def analyze_skin(
             f.write(content)
         saved_file_paths[dir_name] = file_path
 
+    original_image_paths = {
+        "front": saved_file_paths["front"],
+        "left": saved_file_paths["left"],
+        "right": saved_file_paths["right"],
+    }
+
+    preprocessed_results = preprocess_image_map(
+        original_image_paths,
+        max_size=1280,
+        enable_sharpen=False,
+        overwrite=True,
+    )
+
+    preprocessed_image_paths = {
+        key: result.processed_path
+        for key, result in preprocessed_results.items()
+    }
+
     yolo_api_url = os.getenv(
         "YOLO_API_URL",
         "http://host.docker.internal:8001/analyze"
@@ -119,7 +137,7 @@ async def analyze_skin(
     try:
         for direction in directions:
             yolo_result = await call_yolo_api(
-                image_path=saved_file_paths[direction],
+                image_path=preprocessed_image_paths[direction],
                 api_url=yolo_api_url,
                 timeout=30.0,
             )
@@ -138,7 +156,7 @@ async def analyze_skin(
                 annotated_file_paths[direction] = None
 
         score_result = await call_skin_score_api(
-            image_path=saved_file_paths["front"],
+            image_path=preprocessed_image_paths["front"],
             detections=front_detections,
             api_url=skin_score_api_url,
             timeout=30.0,
