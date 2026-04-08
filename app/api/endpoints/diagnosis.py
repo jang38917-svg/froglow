@@ -2,6 +2,7 @@ import os
 import uuid
 import random
 import base64
+from datetime import datetime, time
 from typing import Optional
 
 from fastapi import APIRouter, File, UploadFile, Depends, Form
@@ -82,6 +83,7 @@ async def analyze_skin(
     left: UploadFile = File(...),
     right: UploadFile = File(...),
     skin_type: Optional[str] = Form(None),
+    record_date: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -194,6 +196,12 @@ async def analyze_skin(
             product_ids=evening_product_ids
         )
 
+    created_at_value = datetime.utcnow()
+
+    if record_date:
+        parsed_date = datetime.strptime(record_date, "%Y-%m-%d").date()
+        created_at_value = datetime.combine(parsed_date, time.min)
+
     new_history = DiagnosisHistory(
         user_id=user_id,
         acne_count=final_summary["acne"],
@@ -204,7 +212,8 @@ async def analyze_skin(
         folder_id=folder_id,
         front_image_path=saved_file_paths.get("front"),
         left_image_path=saved_file_paths.get("left"),
-        right_image_path=saved_file_paths.get("right")
+        right_image_path=saved_file_paths.get("right"),
+        created_at=created_at_value
     )
     db.add(new_history)
     db.commit()
