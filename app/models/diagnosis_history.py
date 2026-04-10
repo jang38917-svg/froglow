@@ -31,6 +31,3 @@ class DiagnosisHistory(Base):
     right_image_path: Mapped[str] = mapped_column(String(255), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-
-    # (옵션) 유저 모델과 관계 설정이 필요하면 추가
-    # user = relationship("User", back_populates="diagnosis_histories")

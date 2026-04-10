@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.services.recommend_service import recommend_products
-from app.services.routine_service import save_routine
+from app.services.routine_service import save_routine, get_routine
 from app.services.yolo_client import call_yolo_api, YoloClientError
 from app.services.skin_score_client import call_skin_score_api, SkinScoreClientError
 from app.services.image_preprocess import preprocess_image_map
@@ -198,7 +198,10 @@ async def analyze_skin(
         recommendation_result.get("evening_routine", [])
     )
 
-    if morning_product_ids:
+    existing_am_routine = get_routine(db, user_id=user_id, routine_type="AM")
+    existing_pm_routine = get_routine(db, user_id=user_id, routine_type="PM")
+
+    if existing_am_routine is None and morning_product_ids:
         save_routine(
             db,
             user_id=user_id,
@@ -206,7 +209,7 @@ async def analyze_skin(
             product_ids=morning_product_ids
         )
 
-    if evening_product_ids:
+    if existing_pm_routine is None and evening_product_ids:
         save_routine(
             db,
             user_id=user_id,
