@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import date, datetime
 from typing import List, Optional
@@ -47,3 +47,17 @@ class DiagnosisCalendarDatesResponse(BaseModel):
     year: int
     month: int
     dates: List[DiagnosisCalendarDateItem]
+
+
+class DiagnosisAverageItem(BaseModel):
+    acne: float
+    redness: float
+    wrinkle: float
+    spot: float
+
+
+class DiagnosisStatsResponse(BaseModel):
+    period: str
+    start_date: date
+    end_date: date
+    average: DiagnosisAverageItem

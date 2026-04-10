@@ -1,10 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import os
 from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
