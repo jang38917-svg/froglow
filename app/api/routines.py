@@ -3,7 +3,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.api.auth import get_current_user
 from app.db.session import SessionLocal
+from app.models.user import User
 from app.schemas.routine import (
     RoutineCreateRequest,
     RoutineItemOut,
@@ -22,9 +24,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-def get_current_user_id() -> int:
-    return 1
 
 
 def _normalize_routine_type(rt: str) -> str:
@@ -46,7 +45,10 @@ def _dedupe_preserve_order(xs: list[int]) -> list[int]:
 
 
 @router.post("/preview", response_model=RoutinePreviewResponse)
-def preview_routine(payload: RoutinePreviewRequest, db: Session = Depends(get_db)):
+def preview_routine(
+    payload: RoutinePreviewRequest,
+    db: Session = Depends(get_db),
+):
     try:
         routine_type = _normalize_routine_type(payload.routine_type)
         product_ids = _dedupe_preserve_order(payload.product_ids or [])
@@ -61,8 +63,12 @@ def preview_routine(payload: RoutinePreviewRequest, db: Session = Depends(get_db
 
 
 @router.post("", response_model=RoutineOut)
-def create_or_replace_routine(payload: RoutineCreateRequest, db: Session = Depends(get_db)):
-    user_id = get_current_user_id()
+def create_or_replace_routine(
+    payload: RoutineCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user_id = current_user.id
 
     try:
         routine_type = _normalize_routine_type(payload.routine_type)
@@ -87,8 +93,12 @@ def create_or_replace_routine(payload: RoutineCreateRequest, db: Session = Depen
 
 
 @router.get("", response_model=RoutineOut)
-def read_routine(routine_type: str, db: Session = Depends(get_db)):
-    user_id = get_current_user_id()
+def read_routine(
+    routine_type: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user_id = current_user.id
 
     try:
         routine_type = _normalize_routine_type(routine_type)
