@@ -5,7 +5,7 @@ import base64
 from datetime import datetime, time
 from typing import Optional
 
-from fastapi import APIRouter, File, UploadFile, Depends, Form
+from fastapi import APIRouter, File, UploadFile, Depends, Form, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
@@ -77,18 +77,100 @@ def _extract_product_ids(routine_steps: list[dict]) -> list[int]:
     return unique_product_ids
 
 
-@router.post("/analyze")
-async def analyze_skin(
-    front: UploadFile = File(...),
-    left: UploadFile = File(...),
-    right: UploadFile = File(...),
-    skin_type: Optional[str] = Form(None),
-    record_date: Optional[str] = Form(None),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    final_skin = skin_type or current_user.skin_type or "COMB"
+def _parse_record_date(record_date: Optional[str]) -> datetime:
+    created_at_value = datetime.utcnow()
 
+    if record_date:
+        parsed_date = datetime.strptime(record_date, "%Y-%m-%d").date()
+        created_at_value = datetime.combine(parsed_date, time.min)
+
+    return created_at_value
+
+
+def _build_image_paths_from_folder(folder_id: str) -> dict[str, Optional[str]]:
+    folder_path = os.path.join(UPLOAD_DIR, folder_id)
+
+    return {
+        "front": os.path.join(folder_path, "front.jpg"),
+        "left": os.path.join(folder_path, "left.jpg"),
+        "right": os.path.join(folder_path, "right.jpg"),
+    }
+
+
+def _ensure_folder_exists(folder_id: str) -> str:
+    folder_path = os.path.join(UPLOAD_DIR, folder_id)
+    if not os.path.isdir(folder_path):
+        raise HTTPException(status_code=404, detail="Analysis folder not found")
+    return folder_path
+
+
+def _ensure_initial_routines(
+    db: Session,
+    user_id: int,
+    recommendation_result: dict,
+) -> None:
+    morning_product_ids = _extract_product_ids(
+        recommendation_result.get("morning_routine", [])
+    )
+    evening_product_ids = _extract_product_ids(
+        recommendation_result.get("evening_routine", [])
+    )
+
+    existing_am_routine = get_routine(db, user_id=user_id, routine_type="AM")
+    existing_pm_routine = get_routine(db, user_id=user_id, routine_type="PM")
+
+    if existing_am_routine is None and morning_product_ids:
+        save_routine(
+            db,
+            user_id=user_id,
+            routine_type="AM",
+            product_ids=morning_product_ids
+        )
+
+    if existing_pm_routine is None and evening_product_ids:
+        save_routine(
+            db,
+            user_id=user_id,
+            routine_type="PM",
+            product_ids=evening_product_ids
+        )
+
+
+def _create_history(
+    db: Session,
+    user_id: int,
+    folder_id: str,
+    final_summary: dict[str, int],
+    primary_concern: str,
+    saved_file_paths: dict[str, Optional[str]],
+    created_at_value: datetime,
+) -> DiagnosisHistory:
+    new_history = DiagnosisHistory(
+        user_id=user_id,
+        acne_count=final_summary["acne"],
+        redness_count=final_summary["redness"],
+        wrinkle_count=final_summary["wrinkle"],
+        spot_count=final_summary["spot"],
+        primary_concern=primary_concern,
+        folder_id=folder_id,
+        front_image_path=saved_file_paths.get("front"),
+        left_image_path=saved_file_paths.get("left"),
+        right_image_path=saved_file_paths.get("right"),
+        created_at=created_at_value
+    )
+    db.add(new_history)
+    db.commit()
+    db.refresh(new_history)
+    return new_history
+
+
+async def _run_analysis(
+    front: UploadFile,
+    left: UploadFile,
+    right: UploadFile,
+    final_skin: str,
+    db: Session,
+) -> dict:
     folder_id = uuid.uuid4().hex[:10]
     save_path = os.path.join(UPLOAD_DIR, folder_id)
     os.makedirs(save_path, exist_ok=True)
@@ -189,62 +271,159 @@ async def analyze_skin(
 
     primary_concern = max(final_summary, key=final_summary.get)
 
-    user_id = current_user.id
-
-    morning_product_ids = _extract_product_ids(
-        recommendation_result.get("morning_routine", [])
-    )
-    evening_product_ids = _extract_product_ids(
-        recommendation_result.get("evening_routine", [])
-    )
-
-    existing_am_routine = get_routine(db, user_id=user_id, routine_type="AM")
-    existing_pm_routine = get_routine(db, user_id=user_id, routine_type="PM")
-
-    if existing_am_routine is None and morning_product_ids:
-        save_routine(
-            db,
-            user_id=user_id,
-            routine_type="AM",
-            product_ids=morning_product_ids
-        )
-
-    if existing_pm_routine is None and evening_product_ids:
-        save_routine(
-            db,
-            user_id=user_id,
-            routine_type="PM",
-            product_ids=evening_product_ids
-        )
-
-    created_at_value = datetime.utcnow()
-
-    if record_date:
-        parsed_date = datetime.strptime(record_date, "%Y-%m-%d").date()
-        created_at_value = datetime.combine(parsed_date, time.min)
-
-    new_history = DiagnosisHistory(
-        user_id=user_id,
-        acne_count=final_summary["acne"],
-        redness_count=final_summary["redness"],
-        wrinkle_count=final_summary["wrinkle"],
-        spot_count=final_summary["spot"],
-        primary_concern=primary_concern,
-        folder_id=folder_id,
-        front_image_path=saved_file_paths.get("front"),
-        left_image_path=saved_file_paths.get("left"),
-        right_image_path=saved_file_paths.get("right"),
-        created_at=created_at_value
-    )
-    db.add(new_history)
-    db.commit()
-
     return {
-        "status": "success",
         "folder_id": folder_id,
         "diagnosis": final_summary,
         "primary_concern": primary_concern,
         "images": saved_file_paths,
         "annotated_images": annotated_file_paths,
-        "recommendation": recommendation_result
+        "recommendation": recommendation_result,
+    }
+
+
+@router.post("/analyze/preview")
+async def analyze_skin_preview(
+    front: UploadFile = File(...),
+    left: UploadFile = File(...),
+    right: UploadFile = File(...),
+    skin_type: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    final_skin = skin_type or current_user.skin_type or "COMB"
+
+    result = await _run_analysis(
+        front=front,
+        left=left,
+        right=right,
+        final_skin=final_skin,
+        db=db,
+    )
+
+    return {
+        "status": "success",
+        "folder_id": result["folder_id"],
+        "diagnosis": result["diagnosis"],
+        "primary_concern": result["primary_concern"],
+        "images": result["images"],
+        "annotated_images": result["annotated_images"],
+        "recommendation": result["recommendation"],
+    }
+
+
+@router.post("/save")
+async def save_diagnosis(
+    folder_id: str = Form(...),
+    acne: int = Form(...),
+    redness: int = Form(...),
+    wrinkle: int = Form(...),
+    spot: int = Form(...),
+    primary_concern: Optional[str] = Form(None),
+    skin_type: Optional[str] = Form(None),
+    record_date: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    _ensure_folder_exists(folder_id)
+
+    final_skin = skin_type or current_user.skin_type or "COMB"
+
+    final_summary = {
+        "acne": _clamp_score(acne),
+        "redness": _clamp_score(redness),
+        "wrinkle": _clamp_score(wrinkle),
+        "spot": _clamp_score(spot),
+    }
+
+    final_primary_concern = primary_concern
+    if not final_primary_concern or final_primary_concern not in final_summary:
+        final_primary_concern = max(final_summary, key=final_summary.get)
+
+    saved_file_paths = _build_image_paths_from_folder(folder_id)
+
+    recommendation_result = recommend_products(
+        db=db,
+        skin_type=final_skin,
+        acne_score=float(final_summary["acne"]),
+        spots_score=float(final_summary["spot"]),
+        redness_score=float(final_summary["redness"]),
+        wrinkles_score=float(final_summary["wrinkle"])
+    )
+
+    _ensure_initial_routines(
+        db=db,
+        user_id=current_user.id,
+        recommendation_result=recommendation_result,
+    )
+
+    created_at_value = _parse_record_date(record_date)
+
+    history = _create_history(
+        db=db,
+        user_id=current_user.id,
+        folder_id=folder_id,
+        final_summary=final_summary,
+        primary_concern=final_primary_concern,
+        saved_file_paths=saved_file_paths,
+        created_at_value=created_at_value,
+    )
+
+    return {
+        "status": "success",
+        "id": history.id,
+        "folder_id": folder_id,
+        "diagnosis": final_summary,
+        "primary_concern": final_primary_concern,
+        "images": saved_file_paths,
+        "recommendation": recommendation_result,
+        "record_date": created_at_value.date().isoformat(),
+    }
+
+
+@router.post("/analyze")
+async def analyze_skin(
+    front: UploadFile = File(...),
+    left: UploadFile = File(...),
+    right: UploadFile = File(...),
+    skin_type: Optional[str] = Form(None),
+    record_date: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    final_skin = skin_type or current_user.skin_type or "COMB"
+
+    result = await _run_analysis(
+        front=front,
+        left=left,
+        right=right,
+        final_skin=final_skin,
+        db=db,
+    )
+
+    _ensure_initial_routines(
+        db=db,
+        user_id=current_user.id,
+        recommendation_result=result["recommendation"],
+    )
+
+    created_at_value = _parse_record_date(record_date)
+
+    _create_history(
+        db=db,
+        user_id=current_user.id,
+        folder_id=result["folder_id"],
+        final_summary=result["diagnosis"],
+        primary_concern=result["primary_concern"],
+        saved_file_paths=result["images"],
+        created_at_value=created_at_value,
+    )
+
+    return {
+        "status": "success",
+        "folder_id": result["folder_id"],
+        "diagnosis": result["diagnosis"],
+        "primary_concern": result["primary_concern"],
+        "images": result["images"],
+        "annotated_images": result["annotated_images"],
+        "recommendation": result["recommendation"]
     }
