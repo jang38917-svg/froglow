@@ -14,6 +14,8 @@ class RoutineItemOut(BaseModel):
     product_id: int
     step_order: int
     reason: Optional[str] = None
+    product_name: Optional[str] = None
+    step_name: Optional[str] = None
 
 
 class RoutinePreviewResponse(BaseModel):

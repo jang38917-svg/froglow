@@ -13,7 +13,12 @@ from app.schemas.routine import (
     RoutinePreviewRequest,
     RoutinePreviewResponse,
 )
-from app.services.routine_service import build_routine_preview, get_routine, save_routine
+from app.services.routine_service import (
+    build_routine_preview,
+    build_saved_routine_response,
+    get_routine,
+    save_routine,
+)
 
 router = APIRouter(prefix="/routines", tags=["routines"])
 
@@ -77,18 +82,13 @@ def create_or_replace_routine(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    data = build_saved_routine_response(db, routine)
+
     return RoutineOut(
-        id=routine.id,
-        user_id=routine.user_id,
-        routine_type=routine.routine_type,
-        items=[
-            RoutineItemOut(
-                product_id=i.product_id,
-                step_order=i.step_order,
-                reason=i.reason,
-            )
-            for i in routine.items
-        ],
+        id=data["id"],
+        user_id=data["user_id"],
+        routine_type=data["routine_type"],
+        items=[RoutineItemOut(**it) for it in data["items"]],
     )
 
 
@@ -109,16 +109,11 @@ def read_routine(
     if not routine:
         raise HTTPException(status_code=404, detail="Routine not found")
 
+    data = build_saved_routine_response(db, routine)
+
     return RoutineOut(
-        id=routine.id,
-        user_id=routine.user_id,
-        routine_type=routine.routine_type,
-        items=[
-            RoutineItemOut(
-                product_id=i.product_id,
-                step_order=i.step_order,
-                reason=i.reason,
-            )
-            for i in routine.items
-        ],
+        id=data["id"],
+        user_id=data["user_id"],
+        routine_type=data["routine_type"],
+        items=[RoutineItemOut(**it) for it in data["items"]],
     )
