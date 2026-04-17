@@ -33,9 +33,23 @@ class DiagnosisCalendarItem(BaseModel):
     diagnosis: DiagnosisResult
 
 
+class DiagnosisRoutineItem(BaseModel):
+    product_id: int
+    product_name: Optional[str] = None
+    step_order: int
+    step_name: Optional[str] = None
+    product_image_url: Optional[str] = None
+
+
+class DiagnosisRoutineGroup(BaseModel):
+    AM: List[DiagnosisRoutineItem]
+    PM: List[DiagnosisRoutineItem]
+
+
 class DiagnosisCalendarDailyResponse(BaseModel):
     date: date
     items: List[DiagnosisCalendarItem]
+    routine: DiagnosisRoutineGroup
 
 
 class DiagnosisCalendarDateItem(BaseModel):
