@@ -16,6 +16,7 @@ class RoutineItemOut(BaseModel):
     reason: Optional[str] = None
     product_name: Optional[str] = None
     step_name: Optional[str] = None
+    product_image_url: Optional[str] = None
 
 
 class RoutinePreviewResponse(BaseModel):

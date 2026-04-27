@@ -158,6 +158,7 @@ def _sort_routine_items(routine_type: str, items: list[dict]) -> list[dict]:
             "reason": item.get("reason"),
             "product_name": item.get("product_name"),
             "step_name": item.get("step_name"),
+            "product_image_url": item.get("product_image_url"),
         }
         result.append(new_item)
 
@@ -212,7 +213,12 @@ def build_saved_routine_response(db: Session, routine: Routine):
         return None
 
     rows = (
-        db.query(RoutineItem, Product.product_name, Product.formulation)
+        db.query(
+            RoutineItem,
+            Product.product_name,
+            Product.formulation,
+            Product.product_image_url,
+        )
         .outerjoin(Product, Product.product_id == RoutineItem.product_id)
         .filter(RoutineItem.routine_id == routine.id)
         .order_by(RoutineItem.step_order.asc())
@@ -220,7 +226,7 @@ def build_saved_routine_response(db: Session, routine: Routine):
     )
 
     raw_items = []
-    for item, product_name, formulation in rows:
+    for item, product_name, formulation, product_image_url in rows:
         step_name = _get_step_name(
             routine.routine_type,
             item.step_order,
@@ -236,6 +242,7 @@ def build_saved_routine_response(db: Session, routine: Routine):
                 "reason": item.reason if item.reason else None,
                 "product_name": product_name,
                 "step_name": step_name,
+                "product_image_url": product_image_url,
             }
         )
 
