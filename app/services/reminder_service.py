@@ -18,7 +18,7 @@ DEFAULT_AM_ROUTINE_LABEL = "아침 루틴 체크"
 DEFAULT_PM_ROUTINE_LABEL = "저녁 루틴 체크"
 
 DEFAULT_AM_ROUTINE_TIME = "09:00"
-DEFAULT_PM_ROUTINE_TIME = "00:00"
+DEFAULT_PM_ROUTINE_TIME = "18:00"
 
 
 def _get_routine_reminder(db: Session, user_id: int, routine_key: str) -> Reminder | None:
