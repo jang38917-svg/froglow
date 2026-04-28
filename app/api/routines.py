@@ -1,12 +1,18 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import date, datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
 from app.db.session import SessionLocal
+from app.models.routine import RoutineCompletion
 from app.models.user import User
 from app.schemas.routine import (
+    RoutineCompletionRequest,
+    RoutineCompletionResponse,
+    RoutineCompletionStatusResponse,
     RoutineCreateRequest,
     RoutineItemOut,
     RoutineOut,
@@ -64,6 +70,80 @@ def preview_routine(
     return RoutinePreviewResponse(
         routine_type=routine_type,
         items=[RoutineItemOut(**it) for it in items],
+    )
+
+
+@router.get("/completion", response_model=RoutineCompletionStatusResponse)
+def read_routine_completion(
+    date_value: date = Query(..., alias="date"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    rows = (
+        db.query(RoutineCompletion)
+        .filter(RoutineCompletion.user_id == current_user.id)
+        .filter(RoutineCompletion.date == date_value)
+        .all()
+    )
+
+    status = {
+        "AM": False,
+        "PM": False,
+    }
+
+    for row in rows:
+        rt = _normalize_routine_type(row.routine_type)
+        status[rt] = bool(row.is_completed)
+
+    return RoutineCompletionStatusResponse(
+        date=date_value,
+        AM=status["AM"],
+        PM=status["PM"],
+    )
+
+
+@router.post("/completion", response_model=RoutineCompletionResponse)
+def save_routine_completion(
+    payload: RoutineCompletionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        routine_type = _normalize_routine_type(payload.routine_type)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    row = (
+        db.query(RoutineCompletion)
+        .filter(RoutineCompletion.user_id == current_user.id)
+        .filter(RoutineCompletion.date == payload.date)
+        .filter(RoutineCompletion.routine_type == routine_type)
+        .first()
+    )
+
+    completed_at_value = datetime.utcnow() if payload.is_completed else None
+
+    if row:
+        row.is_completed = payload.is_completed
+        row.completed_at = completed_at_value
+    else:
+        row = RoutineCompletion(
+            user_id=current_user.id,
+            date=payload.date,
+            routine_type=routine_type,
+            is_completed=payload.is_completed,
+            completed_at=completed_at_value,
+        )
+        db.add(row)
+
+    db.commit()
+    db.refresh(row)
+
+    return RoutineCompletionResponse(
+        date=row.date,
+        routine_type=row.routine_type,
+        is_completed=row.is_completed,
+        completed_at=row.completed_at,
     )
 
 

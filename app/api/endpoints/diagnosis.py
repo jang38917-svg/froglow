@@ -10,7 +10,11 @@ from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.services.recommend_service import recommend_products
-from app.services.routine_service import save_routine, get_routine
+from app.services.routine_service import (
+    build_saved_routine_response,
+    save_routine,
+    get_routine,
+)
 from app.services.yolo_client import call_yolo_api, YoloClientError
 from app.services.skin_score_client import call_skin_score_api, SkinScoreClientError
 from app.services.image_preprocess import preprocess_image_map
@@ -136,6 +140,26 @@ def _ensure_initial_routines(
         )
 
 
+def _build_current_routine_snapshot(db: Session, user_id: int) -> dict:
+    snapshot = {
+        "AM": [],
+        "PM": [],
+    }
+
+    for routine_type in ["AM", "PM"]:
+        routine = get_routine(db, user_id=user_id, routine_type=routine_type)
+        if not routine:
+            continue
+
+        data = build_saved_routine_response(db, routine)
+        if not data:
+            continue
+
+        snapshot[routine_type] = data.get("items", [])
+
+    return snapshot
+
+
 def _create_history(
     db: Session,
     user_id: int,
@@ -144,6 +168,7 @@ def _create_history(
     primary_concern: str,
     saved_file_paths: dict[str, Optional[str]],
     created_at_value: datetime,
+    routine_snapshot: Optional[dict] = None,
 ) -> DiagnosisHistory:
     new_history = DiagnosisHistory(
         user_id=user_id,
@@ -156,6 +181,7 @@ def _create_history(
         front_image_path=saved_file_paths.get("front"),
         left_image_path=saved_file_paths.get("left"),
         right_image_path=saved_file_paths.get("right"),
+        routine_snapshot=routine_snapshot,
         created_at=created_at_value
     )
     db.add(new_history)
@@ -356,6 +382,11 @@ async def save_diagnosis(
         recommendation_result=recommendation_result,
     )
 
+    routine_snapshot = _build_current_routine_snapshot(
+        db=db,
+        user_id=current_user.id,
+    )
+
     created_at_value = _parse_record_date(record_date)
 
     history = _create_history(
@@ -366,6 +397,7 @@ async def save_diagnosis(
         primary_concern=final_primary_concern,
         saved_file_paths=saved_file_paths,
         created_at_value=created_at_value,
+        routine_snapshot=routine_snapshot,
     )
 
     return {
@@ -406,6 +438,11 @@ async def analyze_skin(
         recommendation_result=result["recommendation"],
     )
 
+    routine_snapshot = _build_current_routine_snapshot(
+        db=db,
+        user_id=current_user.id,
+    )
+
     created_at_value = _parse_record_date(record_date)
 
     _create_history(
@@ -416,6 +453,7 @@ async def analyze_skin(
         primary_concern=result["primary_concern"],
         saved_file_paths=result["images"],
         created_at_value=created_at_value,
+        routine_snapshot=routine_snapshot,
     )
 
     return {

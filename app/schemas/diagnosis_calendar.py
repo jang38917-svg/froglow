@@ -46,10 +46,16 @@ class DiagnosisRoutineGroup(BaseModel):
     PM: List[DiagnosisRoutineItem]
 
 
+class DiagnosisRoutineCompletion(BaseModel):
+    AM: bool
+    PM: bool
+
+
 class DiagnosisCalendarDailyResponse(BaseModel):
     date: date
     items: List[DiagnosisCalendarItem]
     routine: DiagnosisRoutineGroup
+    routine_completion: DiagnosisRoutineCompletion
 
 
 class DiagnosisCalendarDateItem(BaseModel):

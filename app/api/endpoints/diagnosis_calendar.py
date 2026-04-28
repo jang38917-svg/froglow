@@ -10,7 +10,7 @@ from app.api.auth import get_current_user
 from app.db.session import SessionLocal
 from app.models.diagnosis_history import DiagnosisHistory
 from app.models.product import Product
-from app.models.routine import Routine, RoutineItem
+from app.models.routine import Routine, RoutineCompletion, RoutineItem
 from app.models.user import User
 from app.schemas.diagnosis_calendar import (
     DiagnosisCalendarDailyResponse,
@@ -20,6 +20,7 @@ from app.schemas.diagnosis_calendar import (
     DiagnosisImages,
     DiagnosisImageItem,
     DiagnosisResult,
+    DiagnosisRoutineCompletion,
     DiagnosisRoutineGroup,
     DiagnosisRoutineItem,
 )
@@ -253,6 +254,74 @@ def _build_routine_items(db: Session, user_id: int, routine_type: str) -> list[D
     return result
 
 
+def _build_routine_group_from_snapshot(snapshot: dict | None) -> DiagnosisRoutineGroup | None:
+    if not snapshot:
+        return None
+
+    result = {
+        "AM": [],
+        "PM": [],
+    }
+
+    for routine_type in ["AM", "PM"]:
+        items = snapshot.get(routine_type, []) or []
+
+        for item in items:
+            product_id = item.get("product_id")
+            if product_id is None:
+                continue
+
+            result[routine_type].append(
+                DiagnosisRoutineItem(
+                    product_id=product_id,
+                    product_name=item.get("product_name"),
+                    step_order=item.get("step_order", len(result[routine_type]) + 1),
+                    step_name=item.get("step_name"),
+                    product_image_url=item.get("product_image_url"),
+                )
+            )
+
+    return DiagnosisRoutineGroup(
+        AM=result["AM"],
+        PM=result["PM"],
+    )
+
+
+def _build_current_routine_group(db: Session, user_id: int) -> DiagnosisRoutineGroup:
+    return DiagnosisRoutineGroup(
+        AM=_build_routine_items(db, user_id, "AM"),
+        PM=_build_routine_items(db, user_id, "PM"),
+    )
+
+
+def _build_routine_completion(
+    db: Session,
+    user_id: int,
+    date_value: date,
+) -> DiagnosisRoutineCompletion:
+    rows = (
+        db.query(RoutineCompletion)
+        .filter(RoutineCompletion.user_id == user_id)
+        .filter(RoutineCompletion.date == date_value)
+        .all()
+    )
+
+    status = {
+        "AM": False,
+        "PM": False,
+    }
+
+    for row in rows:
+        routine_type = (row.routine_type or "").strip().upper()
+        if routine_type in status:
+            status[routine_type] = bool(row.is_completed)
+
+    return DiagnosisRoutineCompletion(
+        AM=status["AM"],
+        PM=status["PM"],
+    )
+
+
 @router.get("/daily", response_model=DiagnosisCalendarDailyResponse)
 def get_daily_diagnosis_histories(
     date_value: date = Query(..., alias="date"),
@@ -305,16 +374,25 @@ def get_daily_diagnosis_histories(
             )
         )
 
-    am_routine = _build_routine_items(db, current_user.id, "AM")
-    pm_routine = _build_routine_items(db, current_user.id, "PM")
+    routine_group = None
+
+    if rows:
+        routine_group = _build_routine_group_from_snapshot(rows[0].routine_snapshot)
+
+    if routine_group is None:
+        routine_group = _build_current_routine_group(db, current_user.id)
+
+    routine_completion = _build_routine_completion(
+        db=db,
+        user_id=current_user.id,
+        date_value=date_value,
+    )
 
     return DiagnosisCalendarDailyResponse(
         date=date_value,
         items=items,
-        routine=DiagnosisRoutineGroup(
-            AM=am_routine,
-            PM=pm_routine,
-        ),
+        routine=routine_group,
+        routine_completion=routine_completion,
     )
 
 
