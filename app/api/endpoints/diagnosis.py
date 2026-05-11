@@ -113,6 +113,16 @@ def _ensure_initial_routines(
     user_id: int,
     recommendation_result: dict,
 ) -> None:
+    """
+    /api/v1/analyze 전용 안전장치.
+
+    기존 analyze API는 분석과 저장을 한 번에 수행하는 구조라서,
+    루틴이 아직 없는 사용자라면 추천 결과 기반으로 최초 루틴을 자동 생성한다.
+
+    단, /api/v1/save에서는 이 함수를 호출하지 않는다.
+    /save는 프론트에서 /routines 저장을 끝낸 뒤 호출되어야 하며,
+    그 시점의 현재 루틴만 routine_snapshot으로 저장한다.
+    """
     morning_product_ids = _extract_product_ids(
         recommendation_result.get("morning_routine", [])
     )
@@ -128,7 +138,7 @@ def _ensure_initial_routines(
             db,
             user_id=user_id,
             routine_type="AM",
-            product_ids=morning_product_ids
+            product_ids=morning_product_ids,
         )
 
     if existing_pm_routine is None and evening_product_ids:
@@ -136,7 +146,7 @@ def _ensure_initial_routines(
             db,
             user_id=user_id,
             routine_type="PM",
-            product_ids=evening_product_ids
+            product_ids=evening_product_ids,
         )
 
 
@@ -182,7 +192,7 @@ def _create_history(
         left_image_path=saved_file_paths.get("left"),
         right_image_path=saved_file_paths.get("right"),
         routine_snapshot=routine_snapshot,
-        created_at=created_at_value
+        created_at=created_at_value,
     )
     db.add(new_history)
     db.commit()
@@ -233,11 +243,11 @@ async def _run_analysis(
 
     yolo_api_url = os.getenv(
         "YOLO_API_URL",
-        "http://host.docker.internal:8001/analyze"
+        "http://host.docker.internal:8001/analyze",
     )
     skin_score_api_url = os.getenv(
         "SKIN_SCORE_API_URL",
-        "http://host.docker.internal:8002/analyze"
+        "http://host.docker.internal:8002/analyze",
     )
 
     front_detections = []
@@ -292,7 +302,7 @@ async def _run_analysis(
         acne_score=float(final_summary["acne"]),
         spots_score=float(final_summary["spot"]),
         redness_score=float(final_summary["redness"]),
-        wrinkles_score=float(final_summary["wrinkle"])
+        wrinkles_score=float(final_summary["wrinkle"]),
     )
 
     primary_concern = max(final_summary, key=final_summary.get)
@@ -314,8 +324,20 @@ async def analyze_skin_preview(
     right: UploadFile = File(...),
     skin_type: Optional[str] = Form(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
+    """
+    분석 preview API.
+
+    - 이미지 저장
+    - AI 분석
+    - 추천 결과 반환
+    - diagnosis_histories 저장 안 함
+    - routine_snapshot 저장 안 함
+
+    첫 진단 플로우에서는 이 API를 먼저 호출하고,
+    프론트에서 /routines 저장을 완료한 뒤 /api/v1/save를 호출해야 한다.
+    """
     final_skin = skin_type or current_user.skin_type or "COMB"
 
     result = await _run_analysis(
@@ -348,8 +370,17 @@ async def save_diagnosis(
     skin_type: Optional[str] = Form(None),
     record_date: Optional[str] = Form(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
+    """
+    preview 결과를 실제 진단 기록으로 저장하는 API.
+
+    중요:
+    - 이 API는 루틴을 자동 생성하지 않는다.
+    - 프론트에서 POST /routines로 AM/PM 루틴 저장을 끝낸 뒤 호출해야 한다.
+    - 호출 시점의 현재 AM/PM 루틴을 diagnosis_histories.routine_snapshot에 저장한다.
+    - 이후 사용자가 루틴을 변경해도 과거 diagnosis_histories.routine_snapshot은 바뀌지 않는다.
+    """
     _ensure_folder_exists(folder_id)
 
     final_skin = skin_type or current_user.skin_type or "COMB"
@@ -373,15 +404,11 @@ async def save_diagnosis(
         acne_score=float(final_summary["acne"]),
         spots_score=float(final_summary["spot"]),
         redness_score=float(final_summary["redness"]),
-        wrinkles_score=float(final_summary["wrinkle"])
+        wrinkles_score=float(final_summary["wrinkle"]),
     )
 
-    _ensure_initial_routines(
-        db=db,
-        user_id=current_user.id,
-        recommendation_result=recommendation_result,
-    )
-
+    # 여기서 루틴을 새로 만들지 않는다.
+    # 반드시 현재 DB에 저장된 /routines 기준으로만 snapshot을 만든다.
     routine_snapshot = _build_current_routine_snapshot(
         db=db,
         user_id=current_user.id,
@@ -409,6 +436,7 @@ async def save_diagnosis(
         "images": saved_file_paths,
         "recommendation": recommendation_result,
         "record_date": created_at_value.date().isoformat(),
+        "routine_snapshot": routine_snapshot,
     }
 
 
@@ -420,8 +448,19 @@ async def analyze_skin(
     skin_type: Optional[str] = Form(None),
     record_date: Optional[str] = Form(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
+    """
+    기존 분석 + 저장 통합 API.
+
+    주의:
+    첫 진단 플로우에서는 이 API를 사용하지 않는다.
+    첫 진단은 /api/v1/analyze/preview -> /routines -> /api/v1/save 순서로 처리한다.
+
+    이 API는 기존 호환성을 위해 유지한다.
+    루틴이 없는 사용자의 경우 추천 결과 기반으로 최초 루틴을 자동 생성한 뒤,
+    현재 루틴을 routine_snapshot으로 저장한다.
+    """
     final_skin = skin_type or current_user.skin_type or "COMB"
 
     result = await _run_analysis(
@@ -463,5 +502,7 @@ async def analyze_skin(
         "primary_concern": result["primary_concern"],
         "images": result["images"],
         "annotated_images": result["annotated_images"],
-        "recommendation": result["recommendation"]
+        "recommendation": result["recommendation"],
+        "record_date": created_at_value.date().isoformat(),
+        "routine_snapshot": routine_snapshot,
     }
