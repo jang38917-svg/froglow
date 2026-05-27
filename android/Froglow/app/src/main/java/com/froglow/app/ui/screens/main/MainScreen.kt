@@ -1,31 +1,79 @@
 package com.froglow.app.ui.screens.main
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoGraph
+import androidx.compose.material.icons.rounded.ChatBubbleOutline
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import java.util.Calendar
-import androidx.compose.material3.*
+import com.froglow.app.R
+import com.froglow.app.data.SessionStore
+import com.froglow.app.ui.screens.main.products.ProductsTab
+import com.froglow.app.ui.screens.main.products.ProductsViewModel
+import com.froglow.app.ui.screens.main.tabs.ChatbotTab
+import com.froglow.app.ui.screens.main.tabs.HomeTab
+import com.froglow.app.ui.screens.main.tabs.MyPageTab
+import com.froglow.app.ui.screens.main.tabs.StatsTab
 
-enum class MainBottomTab { COMMUNITY, PRODUCTS, MAIN, CHAT, MYPAGE }
+enum class MainBottomTab { STATS, PRODUCTS, MAIN, CHAT, MYPAGE }
+
+private val AppBackground = Color(0xFFFFFEFC)
+
+private val BottomBarBg = Color(0xFFFFFFFF)
+private val BottomBarBorder = Color(0xFFE4D9C8)
+
+private val NavSelectedBg = Color(0xFFEAF4E2)
+private val NavSelectedColor = Color(0xFF77A95B)
+private val NavUnselectedColor = Color(0xFF8B867F)
 
 @Composable
-fun MainScreen() {
-    var selectedTab by remember { mutableStateOf(MainBottomTab.MAIN) }
+fun MainScreen(
+    sessionStore: SessionStore,
+    onOpenProductDetail: (Long) -> Unit,
+    viewModel: ProductsViewModel,
+    onCameraClick: () -> Unit = {},
+    onRoutineChangeClick: () -> Unit = {},
+    onOpenCalendarDetail: (String) -> Unit
+) {
+    var selectedTab by rememberSaveable { mutableStateOf(MainBottomTab.MAIN) }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        modifier = Modifier.fillMaxSize(),
+        containerColor = AppBackground,
         bottomBar = {
             BottomNavBar(
                 selected = selectedTab,
@@ -38,266 +86,170 @@ fun MainScreen() {
                 .padding(inner)
                 .fillMaxSize()
         ) {
-            MainContent(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
-                    .padding(top = 14.dp, bottom = 80.dp) // 하단바 공간 확보
-            )
+            when (selectedTab) {
+                MainBottomTab.STATS -> StatsTab()
 
-            // 개구리(카메라) 버튼 자리만 잡기 (나중에 카메라 연결)
-            FrogCameraButton(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 24.dp, bottom = 80.dp), // 하단바 위에 살짝
-                onClick = {
-                    // TODO: 나중에 CameraScreen으로 이동
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun MainContent(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        RoutineAlertCard()
-        CalendarSection()
-    }
-}
-
-private enum class RoutineTime { MORNING, MIDDAY, NIGHT }
-
-//루틴 알림 창
-@Composable
-fun RoutineAlertCard(
-    modifier: Modifier = Modifier
-) {
-    val time = remember { currentRoutineTime() }
-
-    // FE용 임시 상태(나중에 서버 연결하면 교체)
-    var skin by remember { mutableStateOf(false) }
-    var lotion by remember { mutableStateOf(false) }
-    var cream by remember { mutableStateOf(false) }
-
-    val (emoji, title) = when (time) {
-        RoutineTime.MORNING -> "☀️" to "아침 루틴"
-        RoutineTime.MIDDAY -> "💦" to "중간 루틴"
-        RoutineTime.NIGHT -> "🌙" to "저녁 루틴"
-    }
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .border(2.dp, Color.Black, RoundedCornerShape(20.dp))
-            .background(Color.White)
-            .padding(horizontal = 18.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 왼쪽 아이콘(시간대)
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFFFE7E7)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(emoji, style = MaterialTheme.typography.titleLarge)
-        }
-
-        Spacer(Modifier.width(10.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RoutineCheckItem(
-                    label = "스킨",
-                    checked = skin,
-                    onToggle = { skin = !skin }
+                MainBottomTab.PRODUCTS -> ProductsTab(
+                    viewModel = viewModel,
+                    onProductClick = onOpenProductDetail
                 )
-                RoutineCheckItem(
-                    label = "로션",
-                    checked = lotion,
-                    onToggle = { lotion = !lotion }
+
+                MainBottomTab.MAIN -> HomeTab(
+                    onOpenCalendarDetail = onOpenCalendarDetail
                 )
-                RoutineCheckItem(
-                    label = "크림",
-                    checked = cream,
-                    onToggle = { cream = !cream }
+
+                MainBottomTab.CHAT -> ChatbotTab()
+
+                MainBottomTab.MYPAGE -> MyPageTab(
+                    sessionStore = sessionStore,
+                    onRoutineChangeClick = onRoutineChangeClick
                 )
             }
-        }
-    }
-}
 
-@Composable
-private fun RoutineCheckItem(
-    label: String,
-    checked: Boolean,
-    onToggle: () -> Unit
-) {
-    Row(
-        modifier = Modifier.clickable { onToggle() },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.width(10.dp))
-        Box(
-            modifier = Modifier
-                .size(22.dp)
-                .clip(CircleShape)
-                .border(2.dp, Color.Black, CircleShape)
-                .background(if (checked) Color.Black else Color.Transparent)
-        )
-    }
-}
-
-/**
- * 시간대 규칙
- * - MORNING: 05~11
- * - MIDDAY : 12~17
- * - NIGHT  : 18~04
- */
-private fun currentRoutineTime(): RoutineTime {
-    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-    return when (hour) {
-        in 5..11 -> RoutineTime.MORNING
-        in 12..17 -> RoutineTime.MIDDAY
-        else -> RoutineTime.NIGHT
-    }
-}
-
-//달력
-@Composable
-private fun CalendarSection() {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("달력", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-
-        // 주/달 전환 같은 건 나중에
-        CalendarDotsBlock()
-    }
-}
-
-@Composable
-private fun CalendarDotsBlock() {
-    // 임시 데이터: 4주 * 7일
-    val weeks = remember {
-        List(4) { weekIndex ->
-            List(7) { dayIndex ->
-                (weekIndex + dayIndex) % 5 == 0
-            }
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        weeks.forEach { week ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                week.forEach { checked ->
-                    Dot(checked = checked)
+            if (selectedTab == MainBottomTab.MAIN) {
+                FloatingActionButton(
+                    onClick = onCameraClick,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 24.dp)
+                        .size(68.dp),
+                    containerColor = Color.Transparent,
+                    contentColor = Color.Unspecified,
+                    elevation = FloatingActionButtonDefaults.elevation(
+                        defaultElevation = 0.dp,
+                        pressedElevation = 2.dp,
+                        focusedElevation = 0.dp,
+                        hoveredElevation = 0.dp
+                    )
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.frog_camera),
+                        contentDescription = "카메라",
+                        modifier = Modifier.size(68.dp),
+                        contentScale = ContentScale.Fit
+                    )
                 }
             }
-            HorizontalDivider(
-                thickness = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-            )
         }
     }
 }
 
-@Composable
-private fun Dot(checked: Boolean) {
-    val size = 14.dp
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(
-                if (checked) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.outlineVariant
-            )
-    )
-}
-
-//카메라 버튼
-@Composable
-private fun FrogCameraButton(
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = modifier
-            .size(55.dp)
-            .clickable(onClick = onClick),
-        shape = CircleShape,
-        color = Color(0xFF6BCF9E),
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text("🐸", style = MaterialTheme.typography.titleLarge)
-        }
-    }
-}
-
-//하단 바
 @Composable
 private fun BottomNavBar(
     selected: MainBottomTab,
     onSelect: (MainBottomTab) -> Unit
 ) {
-    NavigationBar {
-        BottomNavItem(label = "통계", isSelected = selected == MainBottomTab.COMMUNITY) {
-            onSelect(MainBottomTab.COMMUNITY)
-        }
-        BottomNavItem(label = "제품", isSelected = selected == MainBottomTab.PRODUCTS) {
-            onSelect(MainBottomTab.PRODUCTS)
-        }
-        BottomNavItem(label = "메인", isSelected = selected == MainBottomTab.MAIN) {
-            onSelect(MainBottomTab.MAIN)
-        }
-        BottomNavItem(label = "챗봇", isSelected = selected == MainBottomTab.CHAT) {
-            onSelect(MainBottomTab.CHAT)
-        }
-        BottomNavItem(label = "마이", isSelected = selected == MainBottomTab.MYPAGE) {
-            onSelect(MainBottomTab.MYPAGE)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .shadow(
+                elevation = 3.dp,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                ambientColor = Color(0x08000000),
+                spotColor = Color(0x08000000)
+            ),
+        color = BottomBarBg,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        border = BorderStroke(1.dp, BottomBarBorder),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BottomNavButton(
+                label = "통계",
+                icon = Icons.Rounded.AutoGraph,
+                selected = selected == MainBottomTab.STATS,
+                onClick = { onSelect(MainBottomTab.STATS) }
+            )
+
+            BottomNavButton(
+                label = "제품",
+                icon = Icons.Rounded.Inventory2,
+                selected = selected == MainBottomTab.PRODUCTS,
+                onClick = { onSelect(MainBottomTab.PRODUCTS) }
+            )
+
+            BottomNavButton(
+                label = "홈",
+                icon = Icons.Rounded.Home,
+                selected = selected == MainBottomTab.MAIN,
+                onClick = { onSelect(MainBottomTab.MAIN) }
+            )
+
+            BottomNavButton(
+                label = "챗봇",
+                icon = Icons.Rounded.ChatBubbleOutline,
+                selected = selected == MainBottomTab.CHAT,
+                onClick = { onSelect(MainBottomTab.CHAT) }
+            )
+
+            BottomNavButton(
+                label = "마이",
+                icon = Icons.Rounded.Person,
+                selected = selected == MainBottomTab.MYPAGE,
+                onClick = { onSelect(MainBottomTab.MYPAGE) }
+            )
         }
     }
 }
 
 @Composable
-private fun RowScope.BottomNavItem(
+private fun BottomNavButton(
     label: String,
-    isSelected: Boolean,
+    icon: ImageVector,
+    selected: Boolean,
     onClick: () -> Unit
 ) {
-    NavigationBarItem(
-        selected = isSelected,
-        onClick = onClick,
-        icon = {}, // 아이콘은 나중에
-        label = { Text(label) }
-    )
+    Box(
+        modifier = Modifier
+            .width(64.dp)
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        if (selected) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .padding(horizontal = 4.dp)
+                    .background(
+                        color = NavSelectedBg,
+                        shape = RoundedCornerShape(18.dp)
+                    )
+            )
+        }
+
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = if (selected) {
+                    NavSelectedColor
+                } else {
+                    NavUnselectedColor
+                },
+                modifier = Modifier.size(20.dp)
+            )
+
+            if (selected) {
+                Text(
+                    text = " $label",
+                    color = NavSelectedColor,
+                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
 }

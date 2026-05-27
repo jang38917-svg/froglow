@@ -1,12 +1,15 @@
 package com.froglow.app.navigation
 
-//화면 ID 정의하는 파일
-
 object Routes {
+    const val LOGIN = "login"
+    const val SIGNUP = "signup"
+    const val SURVEY = "survey"
+    const val SKIN_TYPE = "skin_type"
     const val MAIN = "main"
     const val CAMERA = "camera"
-    const val ROUTINE = "routine"
-    const val HISTORY = "history"
+    const val DIAGNOSIS_RESULT = "diagnosis_result"
+    const val PHOTO_DATE_SELECT = "photo_date_select"
+    const val PRODUCT_DETAIL = "product_detail"
+    const val CALENDAR_DETAIL = "calendar_detail"
+    const val CALENDAR_DETAIL_WITH_ARG = "calendar_detail/{date}"
 }
-
-//로그인, 회원가입, 설문은 나중에
