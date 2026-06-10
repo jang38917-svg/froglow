@@ -13,3 +13,69 @@ __pycache__/
 
 # 업로드 파일
 data/uploads/
+# AI server ignored files
+ai_yolo_service/.venv/
+ai_yolo_service/venv/
+ai_yolo_service/__pycache__/
+ai_yolo_service/**/__pycache__/
+ai_yolo_service/data/
+ai_yolo_service/uploads/
+ai_yolo_service/runs/
+ai_yolo_service/outputs/
+ai_yolo_service/*.log
+ai_yolo_service/weights/*.pt
+ai_yolo_service/weights/*.pth
+ai_yolo_service/weights/*.onnx
+ai_yolo_service/weights/*.engine
+
+ai_skin_score_service/.venv/
+ai_skin_score_service/venv/
+ai_skin_score_service/__pycache__/
+ai_skin_score_service/**/__pycache__/
+ai_skin_score_service/data/
+ai_skin_score_service/uploads/
+ai_skin_score_service/outputs/
+ai_skin_score_service/*.log
+
+# Env
+.env
+
+# macOS
+.DS_Store
+**/.DS_Store
+# macOS
+.DS_Store
+**/.DS_Store
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Python cache
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+.venv/
+**/venv/
+**/.venv/
+
+# Env
+.env
+**/.env
+
+# Test / temporary files
+test.jpg
+**/test.jpg
+
+# AI server outputs
+runs/
+outputs/
+uploads/
+data/
+**/runs/
+**/outputs/
+**/uploads/
+**/data/

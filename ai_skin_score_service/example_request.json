@@ -1,0 +1,16 @@
+{
+  "image_path": "test.jpg",
+  "detections": [
+    {
+      "class_id": 0,
+      "class_name": "acne",
+      "confidence": 0.37,
+      "bbox": {
+        "x1": 100,
+        "y1": 100,
+        "x2": 200,
+        "y2": 200
+      }
+    }
+  ]
+}

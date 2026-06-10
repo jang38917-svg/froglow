@@ -1,0 +1,10 @@
+fastapi==0.110.0
+uvicorn==0.29.0
+tensorflow==2.19.0
+keras==3.13.2
+huggingface_hub==1.7.1
+numpy==2.0.2
+pillow==11.3.0
+python-dotenv==1.0.1
+pydantic==2.6.4
+python-multipart==0.0.9
